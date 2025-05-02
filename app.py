@@ -9,6 +9,7 @@ from datetime import datetime
 from google.cloud import bigquery
 from google.oauth2 import service_account
 import time
+import pathlib
 
 # ----------- AUTH + BIGQUERY -----------
 json_key = st.secrets["GOOGLE_CREDENTIALS_JSON"]
@@ -47,36 +48,40 @@ st.title("🏠 House Style Detector")
 uploaded_file = st.file_uploader("Upload a house image", type=["jpg", "jpeg", "png"])
 
 if uploaded_file:
-    with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+    file_ext = pathlib.Path(uploaded_file.name).suffix  # Keep original extension
+    with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as temp_file:
         temp_file.write(uploaded_file.read())
         temp_path = temp_file.name
 
-    col1, col2 = st.columns(2)
-    with col1:
-        st.image(uploaded_file, caption="Original Image", use_column_width=True)
+    if not os.path.exists(temp_path):
+        st.error("❌ File not saved properly. Please re-upload.")
+    else:
+        col1, col2 = st.columns(2)
+        with col1:
+            st.image(uploaded_file, caption="Original Image", use_column_width=True)
 
-    with col2:
-        pred_img, predicted_label, confidence = predict_style(temp_path)
-        st.image(pred_img, caption=f"Prediction: {predicted_label} ({confidence:.2%})", use_column_width=True)
+        with col2:
+            pred_img, predicted_label, confidence = predict_style(temp_path)
+            st.image(pred_img, caption=f"Prediction: {predicted_label} ({confidence:.2%})", use_column_width=True)
 
-    # Feedback Section
-    st.subheader("Feedback")
-    user_feedback = st.radio("Was this prediction correct?", ["Yes", "No"], horizontal=True)
+        # Feedback Section
+        st.subheader("Feedback")
+        user_feedback = st.radio("Was this prediction correct?", ["Yes", "No"], horizontal=True)
 
-    correct_style = None
-    if user_feedback == "No":
-        correct_style = st.selectbox("What is the correct style?", [
-            "Mediterranean", "Tudor", "Cape Cod", "Colonial", "Craftsman", 
-            "Mid-century Modern", "Contemporary", "Victorian", "Janes Village"])
+        correct_style = None
+        if user_feedback == "No":
+            correct_style = st.selectbox("What is the correct style?", [
+                "Mediterranean", "Tudor", "Cape Cod", "Colonial", "Craftsman", 
+                "Mid-century Modern", "Contemporary", "Victorian", "Janes Village"])
 
-    if st.button("Submit Feedback"):
-        log_feedback_to_bigquery(
-            image_name=uploaded_file.name,
-            predicted_style=predicted_label,
-            confidence=confidence,
-            is_correct=(user_feedback == "Yes"),
-            correct_style=correct_style if user_feedback == "No" else None
-        )
+        if st.button("Submit Feedback"):
+            log_feedback_to_bigquery(
+                image_name=uploaded_file.name,
+                predicted_style=predicted_label,
+                confidence=confidence,
+                is_correct=(user_feedback == "Yes"),
+                correct_style=correct_style if user_feedback == "No" else None
+            )
 
-    # Cleanup
-    os.remove(temp_path)
+        # Cleanup
+        os.remove(temp_path)
