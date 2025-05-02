@@ -3,87 +3,31 @@ from predict_house_style import predict_style
 import tempfile
 import os
 from PIL import Image
-import json
-import uuid
-from datetime import datetime
-from google.cloud import bigquery
-from google.oauth2 import service_account
-import time
-import pathlib
+import cv2
 
-# ----------- AUTH + BIGQUERY -----------
-json_key = st.secrets["GOOGLE_CREDENTIALS_JSON"]
-credentials = service_account.Credentials.from_service_account_info(json.loads(json_key))
-bq_client = bigquery.Client(credentials=credentials, project=credentials.project_id)
+st.set_page_config(page_title="House Style Detector", layout="wide")
+st.title("🏠 House Style Detection with AI")
 
-PROJECT_ID = "ai-architectural-classifier"
-TABLE_ID = "ai-architectural-classifier.house_style_feedback.user_feedback"
+uploaded_files = st.file_uploader("Upload one or more house images", accept_multiple_files=True, type=["jpg", "png", "jpeg"])
 
-def log_feedback_to_bigquery(image_name, predicted_style, confidence, is_correct, correct_style):
-    row = {
-        "image_id": str(uuid.uuid4()),
-        "image_name": image_name,
-        "predicted_style": predicted_style,
-        "predicted_confidence": float(confidence),
-        "is_correct": is_correct,
-        "correct_style": correct_style if not is_correct else None,
-        "timestamp": datetime.utcnow()
-    }
+if uploaded_files:
+    for file in uploaded_files:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp_file:
+            tmp_file.write(file.read())
+            tmp_path = tmp_file.name
 
-    try:
-        errors = bq_client.insert_rows_json(TABLE_ID, [row])
-        if errors:
-            st.error(f"⚠️ Feedback submission failed.\nDetails: {errors}")
-        else:
-            st.success("🎉 Feedback submitted successfully!")
-            st.balloons()
-            time.sleep(1.5)
-    except Exception as e:
-        st.error(f"🚨 Unexpected error: {e}")
+        preds, result_obj = predict_style(tmp_path)
 
-# ----------- UI + PREDICTION -----------
-st.set_page_config(page_title="House Style Classifier", layout="wide")
-st.title("🏠 House Style Detector")
-
-uploaded_file = st.file_uploader("Upload a house image", type=["jpg", "jpeg", "png"])
-
-if uploaded_file:
-    file_ext = pathlib.Path(uploaded_file.name).suffix  # Keep original extension
-    with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as temp_file:
-        temp_file.write(uploaded_file.read())
-        temp_path = temp_file.name
-
-    if not os.path.exists(temp_path):
-        st.error("❌ File not saved properly. Please re-upload.")
-    else:
         col1, col2 = st.columns(2)
         with col1:
-            st.image(uploaded_file, caption="Original Image", use_column_width=True)
-
+            st.image(Image.open(tmp_path), caption="Original", use_column_width=True)
         with col2:
-            pred_img, prediction_data = predict_style(temp_path)
-            predicted_label = prediction_data["label"]
-            confidence = prediction_data["confidence"]
-            st.image(pred_img, caption=f"Prediction: {predicted_label} ({confidence:.2%})", use_column_width=True)
+            st.image(result_obj.plot(), caption="Prediction", use_column_width=True)
 
-        # Feedback Section
-        st.subheader("Feedback")
-        user_feedback = st.radio("Was this prediction correct?", ["Yes", "No"], horizontal=True)
+        for pred in preds:
+            label = pred["label"]
+            conf = int(pred["confidence"] * 100)
+            st.markdown(f"🔎 **Prediction:** `{label}` — **Confidence:** {conf}%")
+            correction = st.selectbox(f"Is this prediction correct for {file.name}?", ["Yes", "No - Wrong Style"], key=file.name + label)
 
-        correct_style = None
-        if user_feedback == "No":
-            correct_style = st.selectbox("What is the correct style?", [
-                "Mediterranean", "Tudor", "Cape Cod", "Colonial", "Craftsman", 
-                "Mid-century Modern", "Contemporary", "Victorian", "Janes Village"])
-
-        if st.button("Submit Feedback"):
-            log_feedback_to_bigquery(
-                image_name=uploaded_file.name,
-                predicted_style=predicted_label,
-                confidence=confidence,
-                is_correct=(user_feedback == "Yes"),
-                correct_style=correct_style if user_feedback == "No" else None
-            )
-
-        # Cleanup
-        os.remove(temp_path)
+        os.unlink(tmp_path)
