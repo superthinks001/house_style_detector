@@ -1,5 +1,3 @@
-# app.py – Updated with Feedback + BigQuery Logging
-
 import streamlit as st
 from predict_house_style import predict_style
 import tempfile
@@ -11,15 +9,9 @@ from datetime import datetime
 from google.cloud import bigquery
 from google.oauth2 import service_account
 
-# ---------- AUTH + BIGQUERY ----------
-import json
-# Pulling the service account JSON from Streamlit secrets
+# ----------- AUTH + BIGQUERY -----------
 json_key = st.secrets["GOOGLE_CREDENTIALS_JSON"]
-
-# Creating credentials from the in-memory string
 credentials = service_account.Credentials.from_service_account_info(json.loads(json_key))
-
-# Initializing BigQuery client
 bq_client = bigquery.Client(credentials=credentials, project=credentials.project_id)
 
 PROJECT_ID = "ai-architectural-classifier"
