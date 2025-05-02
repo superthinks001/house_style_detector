@@ -61,7 +61,9 @@ if uploaded_file:
             st.image(uploaded_file, caption="Original Image", use_column_width=True)
 
         with col2:
-            pred_img, predicted_label, confidence = predict_style(temp_path)
+            pred_img, prediction_data = predict_style(temp_path)
+            predicted_label = prediction_data["label"]
+            confidence = prediction_data["confidence"]
             st.image(pred_img, caption=f"Prediction: {predicted_label} ({confidence:.2%})", use_column_width=True)
 
         # Feedback Section
