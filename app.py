@@ -15,7 +15,14 @@ KEY_FILE = "ai-architectural-classifier-e1c42811d822.json"
 TABLE_ID = "ai-architectural-classifier.house_style_feedback.user_feedback"
 
 # ---------- AUTH + BIGQUERY ----------
-credentials = service_account.Credentials.from_service_account_file(KEY_FILE)
+import json
+# Pulling the service account JSON from Streamlit secrets
+json_key = st.secrets["GOOGLE_CREDENTIALS_JSON"]
+
+# Creating credentials from the in-memory string
+credentials = service_account.Credentials.from_service_account_info(json.loads(json_key))
+
+# Initializing BigQuery client
 bq_client = bigquery.Client(credentials=credentials, project=credentials.project_id)
 
 # ---------- FEEDBACK LOGGER ----------
