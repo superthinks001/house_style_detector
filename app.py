@@ -8,6 +8,7 @@ import uuid
 from datetime import datetime
 from google.cloud import bigquery
 from google.oauth2 import service_account
+import time
 
 # ----------- AUTH + BIGQUERY -----------
 json_key = st.secrets["GOOGLE_CREDENTIALS_JSON"]
@@ -28,11 +29,16 @@ def log_feedback_to_bigquery(image_name, predicted_style, confidence, is_correct
         "timestamp": datetime.utcnow()
     }
 
-    errors = bq_client.insert_rows_json(TABLE_ID, [row])
-    if errors:
-        st.error(f"❌ Failed to log feedback: {errors}")
-    else:
-        st.success("✅ Feedback saved successfully!")
+    try:
+        errors = bq_client.insert_rows_json(TABLE_ID, [row])
+        if errors:
+            st.error(f"⚠️ Feedback submission failed.\nDetails: {errors}")
+        else:
+            st.success("🎉 Feedback submitted successfully!")
+            st.balloons()
+            time.sleep(1.5)
+    except Exception as e:
+        st.error(f"🚨 Unexpected error: {e}")
 
 # ----------- UI + PREDICTION -----------
 st.set_page_config(page_title="House Style Classifier", layout="wide")
